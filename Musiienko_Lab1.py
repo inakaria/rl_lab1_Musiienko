@@ -210,9 +210,9 @@ fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 sns.heatmap(optimal_value, annot=True, fmt=".2f", ax=axes[0])
 axes[0].set_title("Optimal v*(s)")
 sns.heatmap(policy_evaluation_value, annot=True, fmt=".2f", ax=axes[1])
-axes[1].set_title("Iterative v_{π1}(s)")
+axes[1].set_title("Iterative v_π1(s)")
 sns.heatmap(difference, annot=True, fmt=".2f", ax=axes[2])
-axes[2].set_title("Difference (v*(s) - v_{π1}(s))")
+axes[2].set_title("Difference (v*(s) - v_π1(s))")
 
 plt.savefig("task8.png", dpi=300, bbox_inches='tight')
 
