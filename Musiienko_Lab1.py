@@ -7,11 +7,11 @@ import random
 
 print("Milena Musiienko / KM-12 / Lab-1")
 
-env = gym.make("FrozenLake-v1", is_slippery=True)
+env = gym.make("FrozenLake-v1", is_slippery=False)
 env = env.unwrapped
 
 # Параметри
-gamma = 0.5
+gamma = 0.5 # Дисконт
 theta = 1e-6  # Критерій зупинки
 n_states = env.observation_space.n
 n_actions = env.action_space.n
@@ -80,8 +80,14 @@ def action_value(env, value_table, gamma):
     return action_value
 
 value_table_flat = policy_evaluation_value.flatten()
-action_value = action_value(env, value_table_flat, gamma)
-print("Action-Value Function:\n", action_value)
+actionvalue = action_value(env, value_table_flat, gamma)
+
+plt.figure(figsize=(10, 6))
+sns.heatmap(actionvalue, annot=True, cbar=True, fmt=".5f")
+plt.title("Action-Value Function Heatmap (q(s, a))")
+plt.xlabel("Action")
+plt.ylabel("State")
+plt.savefig("task 3", dpi=300, bbox_inches='tight')
 
 
 print("\n4. Створити функцію equiprobable, результатом якої є номер дії.",
@@ -154,50 +160,32 @@ def policy_iteration(env, gamma, theta):
     n_states = env.observation_space.n
     n_actions = env.action_space.n
     value_table = np.zeros(n_states)
+    policy = np.zeros(n_states, dtype=int)
 
     # Оцінювання стратегії
     while True:
         delta = 0
         for s in range(n_states):
-            q_values = []
+            q_values = np.zeros(n_actions)
+
             for a in range(n_actions):
-                q_sa = 0
                 for prob, next_state, reward, done in env.P[s][a]:
-                    q_sa += prob * (reward + gamma * value_table[next_state])
-                q_values.append(q_sa)
+                    q_values[a] += prob * (reward + gamma * value_table[next_state])
+                    
             max_value = max(q_values)
+            policy[s] = np.argmax(q_values)
             delta = max(delta, abs(max_value - value_table[s]))
             value_table[s] = max_value
+
         if delta < theta:
             break
 
-    # Покращення стратегії
-    policy = np.zeros((n_states, n_actions))
-    for s in range(n_states):
-        q_values = []
-        for a in range(n_actions):
-            q_sa = 0
-            for prob, next_state, reward, done in env.P[s][a]:
-                q_sa += prob * (reward + gamma * value_table[next_state])
-            q_values.append(q_sa)
-        best_action = np.argmax(q_values)
-        policy[s, best_action] = 1.0
-
     return value_table, policy
-
 
 optimal_value, optimal_policy = policy_iteration(env, gamma, theta)
 optimal_value = optimal_value.reshape((4, 4))
 
-print("Optimal Policy:")
-print(optimal_policy)
-print("\nOptimal Value Function:")
-print(optimal_value)
-
-plt.figure(figsize=(6, 6))
-sns.heatmap(optimal_value, annot=True, fmt=".2f")
-plt.title("Optimal Value Function")
-plt.savefig("task7.png", dpi=300, bbox_inches='tight')
+print(optimal_policy.reshape(4, 4))
 
 
 print("\n8. Оцінити  оптимальну  стратегію  𝜋∗  та  функцію  ціни  стану  𝑣∗(𝑠)  для заданого  середовища  за",
@@ -225,22 +213,23 @@ total_rewards_optimal = []
 total_durations_optimal = []
 
 def optimal_episodes(env, policy):
-    episode = [] 
-    state = env.reset()[0]  # Ініціалізувати середовище та отримати початковий стан
-    while True:
-        action = np.argmax(policy[state])  # Використання оптимальної стратегії
-        next_state, reward, terminated, truncated, info = env.step(action)
+    episode = []
+    state, _ = env.reset()
+    terminated, truncated = False, False
+
+    while not (terminated or truncated):
+        action = policy[state]
+        next_state, reward, terminated, truncated, _ = env.step(action)
         episode.append((state, action, reward, next_state, terminated, truncated))
-        if terminated or truncated:
-            break
         state = next_state
+
     return episode
 
-for i in range(n_episodes):
+for _ in range(n_episodes):
     episode = optimal_episodes(env, optimal_policy)
-    total_rewards_optimal.append(sum(step[2] for step in episode))
+    total_reward = sum(step[2] for step in episode)
+    total_rewards_optimal.append(total_reward)
     total_durations_optimal.append(len(episode))
-
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 6))
 
@@ -260,25 +249,13 @@ plt.savefig("task9.png", dpi=300, bbox_inches='tight')
 print("\n10. Використовуючи знайдені значення оптимальної функції ціни стану 𝑣∗(𝑠) та  рівняння  Белмана",
       "для  функції  ціни  дії-стану,  оцінити оптимальну функцію ціни дії-стану 𝑞∗(𝑠𝑖,𝑎𝑗). Порівняйте результати з результатами завдання N3")
 
-def optimal_action_value(env, optimal_value_table, gamma):
-    """Обчислення оптимальної функції ціни дії-стану q*(s, a)."""
-    optimal_action = np.zeros((n_states, n_actions))
-    for s in range(n_states):
-        for a in range(n_actions):
-            q_sa = 0
-            for prob, next_state, reward, done in env.P[s][a]:
-                q_sa += prob * (reward + gamma * optimal_value_table[next_state])
-            optimal_action[s, a] = q_sa
-    return optimal_action
-
-
-optimal_action = optimal_action_value(env, optimal_value.flatten(), gamma)
-difference_q = optimal_action - action_value
+optimal_action = action_value(env, optimal_value.flatten(), gamma)
+difference_q = optimal_action - actionvalue
 
 fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 sns.heatmap(optimal_action, annot=True, fmt=".2f", ax=axes[0])
 axes[0].set_title("Optimal Action-Value Function q*")
-sns.heatmap(action_value, annot=True, fmt=".2f", ax=axes[1])
+sns.heatmap(actionvalue, annot=True, fmt=".2f", ax=axes[1])
 axes[1].set_title("Action-Value Function q_π1")
 sns.heatmap(difference_q, annot=True, fmt=".2f", ax=axes[2])
 axes[2].set_title("Difference (q* - q_π1)")
@@ -291,11 +268,13 @@ print("\n11. Створити  функцію  eps_greedy_policy,  аргуме�
       "допустимих  дій  допомогою методу 𝜀-жадібної стратегії (𝜀-greedy policy).")
 
 def eps_greedy_policy(q_values, epsilon):
-    n_actions = len(q_values)
-    if np.random.rand() < epsilon:
-        return np.random.choice(n_actions)
+    random.seed(46)
+    if random.uniform(0, 1) < epsilon:
+        return random.choice(range(len(q_values)))
     else:
-        return np.argmax(q_values)
+        max_q = np.max(q_values)
+        max_actions = [a for a, q in enumerate(q_values) if q == max_q]
+        return random.choice(max_actions)
 
 q_values_example = [0.4, 0.2, 0.5, 0.9]
 epsilon_example = 0.1
